@@ -94,10 +94,50 @@ jobs:
           brew update
           brew install llvm sevenzip
 
-      - name: Prepare tool names for build.ps1
+            - name: Prepare tool names for build.ps1
         shell: bash
         run: |
           set -e
+
+          TOOLS="$PROJECT_ROOT/app/ff_manager/.tools"
+
+          mkdir -p "$TOOLS"
+
+          LLVM="$(brew --prefix llvm)/bin"
+
+          CLANG="$LLVM/clang"
+          STRIP="$LLVM/llvm-strip"
+
+          LD="$(xcrun --find ld)"
+          LIPO="$(xcrun --find lipo)"
+          INSTALL_NAME="$(xcrun --find install_name_tool)"
+          SEVENZIP="$(command -v 7zz)"
+
+          test -f "$CLANG"
+          test -f "$STRIP"
+          test -f "$LD"
+          test -f "$LIPO"
+          test -f "$INSTALL_NAME"
+          test -f "$SEVENZIP"
+
+          ln -sf "$CLANG" "$TOOLS/clang.exe"
+          ln -sf "$STRIP" "$TOOLS/llvm-strip.exe"
+          ln -sf "$LD" "$TOOLS/ld64.lld.exe"
+          ln -sf "$LIPO" "$TOOLS/llvm-lipo.exe"
+          ln -sf "$INSTALL_NAME" "$TOOLS/llvm-install-name-tool.exe"
+          ln -sf "$SEVENZIP" "$TOOLS/7z.exe"
+
+          chmod +x "$TOOLS"/*
+
+          echo "$TOOLS" >> "$GITHUB_PATH"
+
+          echo "======================================"
+          echo "LLVM STRIP"
+          echo "======================================"
+
+          "$STRIP" --version
+
+          echo "llvm-strip.exe is ready."
 
           TOOLS="$PROJECT_ROOT/app/ff_manager/.tools"
 
