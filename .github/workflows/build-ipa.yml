@@ -81,17 +81,19 @@ jobs:
           echo "===== BUILD TOOLS ====="
           ls -l app/ff_manager/.tools
 
-      - name: Install Python dependency
+            - name: Install Python dependency
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install lief
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install lief
 
       - name: Build unsigned IPA
         shell: pwsh
         env:
           IOS_SDK: ${{ env.IOS_SDK }}
           FF_TOOLS_ROOT: ${{ github.workspace }}/app/ff_manager/.tools
-          PYTHON: python3
+          PYTHON: ${{ github.workspace }}/.venv/bin/python
         run: |
           $ErrorActionPreference = "Stop"
 
