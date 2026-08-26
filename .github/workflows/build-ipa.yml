@@ -81,7 +81,7 @@ jobs:
           echo "===== BUILD TOOLS ====="
           ls -l app/ff_manager/.tools
 
-            - name: Install Python dependency
+                  - name: Install Python dependency
         run: |
           python3 -m venv .venv
           . .venv/bin/activate
