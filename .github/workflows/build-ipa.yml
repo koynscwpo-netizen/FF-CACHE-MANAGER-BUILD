@@ -128,11 +128,22 @@ jobs:
 
           chmod +x "$TOOLS"/*
 
+          # Make the .tools directory available to every later GitHub Actions step
+          echo "$TOOLS" >> "$GITHUB_PATH"
+
           echo "======================================"
           echo "BUILD TOOLS"
           echo "======================================"
 
           ls -l "$TOOLS"
+
+          echo "======================================"
+          echo "7-ZIP CHECK"
+          echo "======================================"
+
+          "$TOOLS/7z.exe" --help >/dev/null
+
+          echo "7z.exe is working."
 
       - name: Install Python dependency
         shell: bash
@@ -183,6 +194,16 @@ jobs:
           echo "build.ps1 found."
 
           echo "======================================"
+          echo "7-ZIP PATH CHECK"
+          echo "======================================"
+
+          echo "$PATH"
+
+          command -v 7z.exe
+
+          echo "7z.exe found in PATH."
+
+          echo "======================================"
           echo "PROJECT CONTENTS"
           echo "======================================"
 
@@ -225,6 +246,9 @@ jobs:
           Write-Host "PYTHON:"
           Write-Host $env:PYTHON
 
+          Write-Host "7-ZIP:"
+          Get-Command 7z.exe | Format-List
+
           $UIKitHeader = Join-Path `
             $env:IOS_SDK `
             "System/Library/Frameworks/UIKit.framework/Headers/UIKit.h"
@@ -244,6 +268,7 @@ jobs:
           Write-Host "UIKit/UIKit.h found."
           Write-Host "BUILD-WINDOWS.ps1 found."
           Write-Host "build.ps1 found."
+          Write-Host "7z.exe found."
 
           New-Item -ItemType Directory -Force -Path $env:RELEASE_DIR | Out-Null
 
