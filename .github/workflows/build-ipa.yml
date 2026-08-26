@@ -106,10 +106,16 @@ jobs:
           echo "LIEF:"
           python -c "import lief; print(lief.__version__)"
 
-      - name: Verify project files
+            - name: Find build scripts
         shell: bash
         run: |
           set -e
+
+          echo "===== SEARCH BUILD-WINDOWS.ps1 ====="
+          find . -name "BUILD-WINDOWS.ps1" -type f -print
+
+          echo "===== SEARCH build.ps1 ====="
+          find . -name "build.ps1" -type f -print
 
           echo "======================================"
           echo "PROJECT ROOT"
