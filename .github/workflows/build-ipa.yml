@@ -20,11 +20,18 @@ jobs:
       - name: Get iPhoneOS SDK
         shell: bash
         run: |
+          set -e
+
           SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+
           echo "IOS_SDK=$SDK" >> "$GITHUB_ENV"
-          echo "iPhoneOS SDK: $SDK"
+
+          echo "iPhoneOS SDK:"
+          echo "$SDK"
 
           test -f "$SDK/System/Library/Frameworks/UIKit.framework/Headers/UIKit.h"
+
+          echo "UIKit.h found successfully."
 
       - name: Install build tools
         run: |
@@ -34,31 +41,44 @@ jobs:
       - name: Prepare tool names for build.ps1
         shell: bash
         run: |
+          set -e
+
           mkdir -p app/ff_manager/.tools
 
           LLVM="$(brew --prefix llvm)/bin"
 
+          # Clang
           ln -sf "$LLVM/clang" \
             app/ff_manager/.tools/clang.exe
 
-          ln -sf "$LLVM/ld64.lld" \
+          # Apple linker
+          LD="$(xcrun --find ld)"
+          ln -sf "$LD" \
             app/ff_manager/.tools/ld64.lld.exe
 
-          ln -sf "$LLVM/llvm-lipo" \
+          # Apple lipo
+          LIPO="$(xcrun --find lipo)"
+          ln -sf "$LIPO" \
             app/ff_manager/.tools/llvm-lipo.exe
 
-          ln -sf "$LLVM/llvm-install-name-tool" \
+          # Apple install_name_tool
+          INSTALL_NAME="$(xcrun --find install_name_tool)"
+          ln -sf "$INSTALL_NAME" \
             app/ff_manager/.tools/llvm-install-name-tool.exe
 
-          ln -sf "$LLVM/llvm-strip" \
+          # Apple strip
+          STRIP="$(xcrun --find strip)"
+          ln -sf "$STRIP" \
             app/ff_manager/.tools/llvm-strip.exe
 
-          SEVENZIP="$(brew --prefix sevenzip)/bin/7zz"
+          # 7-Zip
+          SEVENZIP="$(command -v 7zz)"
           ln -sf "$SEVENZIP" \
             app/ff_manager/.tools/7z.exe
 
           chmod +x app/ff_manager/.tools/*
 
+          echo "===== BUILD TOOLS ====="
           ls -l app/ff_manager/.tools
 
       - name: Install Python dependency
@@ -75,11 +95,28 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "IOS_SDK = $env:IOS_SDK"
-          Write-Host "FF_TOOLS_ROOT = $env:FF_TOOLS_ROOT"
+          Write-Host "======================================"
+          Write-Host "FF Cache Manager IPA Build"
+          Write-Host "======================================"
 
-          if (-not (Test-Path "$env:IOS_SDK/System/Library/Frameworks/UIKit.framework/Headers/UIKit.h")) {
-              throw "UIKit/UIKit.h was not found in the Apple SDK."
+          Write-Host "IOS_SDK:"
+          Write-Host $env:IOS_SDK
+
+          Write-Host "FF_TOOLS_ROOT:"
+          Write-Host $env:FF_TOOLS_ROOT
+
+          $UIKitHeader = Join-Path `
+            $env:IOS_SDK `
+            "System/Library/Frameworks/UIKit.framework/Headers/UIKit.h"
+
+          if (-not (Test-Path -LiteralPath $UIKitHeader)) {
+              throw "UIKit/UIKit.h was not found."
+          }
+
+          Write-Host "UIKit/UIKit.h found."
+
+          if (-not (Test-Path -LiteralPath "./BUILD-WINDOWS.ps1")) {
+              throw "BUILD-WINDOWS.ps1 was not found."
           }
 
           & ./BUILD-WINDOWS.ps1 `
@@ -87,13 +124,21 @@ jobs:
             -OutputDirectory "./release"
 
           if ($LASTEXITCODE -ne 0) {
-              throw "IPA build failed."
+              throw "IPA build failed with exit code $LASTEXITCODE"
           }
 
       - name: Show generated files
         run: |
-          echo "===== RELEASE ====="
-          find ./release -maxdepth 2 -type f -print
+          echo "======================================"
+          echo "RELEASE FILES"
+          echo "======================================"
+
+          if [ -d "./release" ]; then
+            find ./release -maxdepth 2 -type f -print
+          else
+            echo "release directory was not created."
+            exit 1
+          fi
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
