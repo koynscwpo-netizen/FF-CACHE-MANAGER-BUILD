@@ -12,9 +12,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Select Xcode
+        shell: bash
         run: |
           set -e
+
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+
           xcodebuild -version
           xcodebuild -showsdks
 
@@ -27,12 +30,61 @@ jobs:
 
           echo "IOS_SDK=$SDK" >> "$GITHUB_ENV"
 
-          echo "iPhoneOS SDK:"
+          echo "======================================"
+          echo "iPhoneOS SDK"
+          echo "======================================"
           echo "$SDK"
 
           test -f "$SDK/System/Library/Frameworks/UIKit.framework/Headers/UIKit.h"
 
           echo "UIKit/UIKit.h found successfully."
+
+      - name: Find project root
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "SEARCH BUILD-WINDOWS.ps1"
+          echo "======================================"
+
+          SCRIPT="$(find . -type f -name 'BUILD-WINDOWS.ps1' -print -quit)"
+
+          if [ -z "$SCRIPT" ]; then
+            echo "BUILD-WINDOWS.ps1 was not found."
+            exit 1
+          fi
+
+          SCRIPT="${SCRIPT#./}"
+          PROJECT_ROOT="$(dirname "$SCRIPT")"
+
+          echo "BUILD SCRIPT:"
+          echo "$SCRIPT"
+
+          echo "PROJECT ROOT:"
+          echo "$PROJECT_ROOT"
+
+          if [ ! -f "$PROJECT_ROOT/app/ff_manager/build.ps1" ]; then
+            echo "build.ps1 was not found:"
+            echo "$PROJECT_ROOT/app/ff_manager/build.ps1"
+            exit 1
+          fi
+
+          echo "BUILD_SCRIPT=$GITHUB_WORKSPACE/$SCRIPT" >> "$GITHUB_ENV"
+          echo "PROJECT_ROOT=$GITHUB_WORKSPACE/$PROJECT_ROOT" >> "$GITHUB_ENV"
+          echo "RELEASE_DIR=$GITHUB_WORKSPACE/$PROJECT_ROOT/release" >> "$GITHUB_ENV"
+
+          echo "======================================"
+          echo "BUILD SCRIPT FOUND"
+          echo "======================================"
+
+          echo "$GITHUB_WORKSPACE/$SCRIPT"
+
+          echo "======================================"
+          echo "BUILD.PS1 FOUND"
+          echo "======================================"
+
+          echo "$GITHUB_WORKSPACE/$PROJECT_ROOT/app/ff_manager/build.ps1"
 
       - name: Install build tools
         shell: bash
@@ -47,7 +99,9 @@ jobs:
         run: |
           set -e
 
-          mkdir -p app/ff_manager/.tools
+          TOOLS="$PROJECT_ROOT/app/ff_manager/.tools"
+
+          mkdir -p "$TOOLS"
 
           LLVM="$(brew --prefix llvm)/bin"
 
@@ -65,90 +119,89 @@ jobs:
           test -f "$STRIP"
           test -f "$SEVENZIP"
 
-          ln -sf "$CLANG" \
-            app/ff_manager/.tools/clang.exe
+          ln -sf "$CLANG" "$TOOLS/clang.exe"
+          ln -sf "$LD" "$TOOLS/ld64.lld.exe"
+          ln -sf "$LIPO" "$TOOLS/llvm-lipo.exe"
+          ln -sf "$INSTALL_NAME" "$TOOLS/llvm-install-name-tool.exe"
+          ln -sf "$STRIP" "$TOOLS/llvm-strip.exe"
+          ln -sf "$SEVENZIP" "$TOOLS/7z.exe"
 
-          ln -sf "$LD" \
-            app/ff_manager/.tools/ld64.lld.exe
+          chmod +x "$TOOLS"/*
 
-          ln -sf "$LIPO" \
-            app/ff_manager/.tools/llvm-lipo.exe
+          echo "======================================"
+          echo "BUILD TOOLS"
+          echo "======================================"
 
-          ln -sf "$INSTALL_NAME" \
-            app/ff_manager/.tools/llvm-install-name-tool.exe
-
-          ln -sf "$STRIP" \
-            app/ff_manager/.tools/llvm-strip.exe
-
-          ln -sf "$SEVENZIP" \
-            app/ff_manager/.tools/7z.exe
-
-          chmod +x app/ff_manager/.tools/*
-
-          echo "===== BUILD TOOLS ====="
-          ls -l app/ff_manager/.tools
+          ls -l "$TOOLS"
 
       - name: Install Python dependency
         shell: bash
         run: |
           set -e
 
-          python3 -m venv .venv
+          python3 -m venv "$GITHUB_WORKSPACE/.venv"
 
-          . .venv/bin/activate
+          . "$GITHUB_WORKSPACE/.venv/bin/activate"
 
           python -m pip install --upgrade pip
           python -m pip install lief
 
-          echo "Python:"
+          echo "======================================"
+          echo "PYTHON"
+          echo "======================================"
+
           python --version
 
-          echo "LIEF:"
+          echo "======================================"
+          echo "LIEF"
+          echo "======================================"
+
           python -c "import lief; print(lief.__version__)"
 
-            - name: Find build scripts
+      - name: Verify project
         shell: bash
         run: |
           set -e
 
-          echo "===== SEARCH BUILD-WINDOWS.ps1 ====="
-          find . -name "BUILD-WINDOWS.ps1" -type f -print
-
-          echo "===== SEARCH build.ps1 ====="
-          find . -name "build.ps1" -type f -print
-
           echo "======================================"
-          echo "PROJECT ROOT"
+          echo "PROJECT"
           echo "======================================"
 
-          pwd
-          ls -la
+          echo "PROJECT_ROOT:"
+          echo "$PROJECT_ROOT"
 
-          echo "======================================"
-          echo "BUILD-WINDOWS.ps1"
-          echo "======================================"
+          echo "BUILD_SCRIPT:"
+          echo "$BUILD_SCRIPT"
 
-          test -f "./BUILD-WINDOWS.ps1"
+          echo "RELEASE_DIR:"
+          echo "$RELEASE_DIR"
+
+          test -f "$BUILD_SCRIPT"
+          test -f "$PROJECT_ROOT/app/ff_manager/build.ps1"
+
           echo "BUILD-WINDOWS.ps1 found."
+          echo "build.ps1 found."
 
           echo "======================================"
-          echo "build.ps1"
+          echo "PROJECT CONTENTS"
           echo "======================================"
 
-          test -f "./app/ff_manager/build.ps1"
-          echo "app/ff_manager/build.ps1 found."
+          ls -la "$PROJECT_ROOT"
 
           echo "======================================"
-          echo "TOOLS"
+          echo "APP CONTENTS"
           echo "======================================"
 
-          ls -la ./app/ff_manager/.tools
+          ls -la "$PROJECT_ROOT/app/ff_manager"
 
       - name: Build unsigned IPA
         shell: pwsh
         env:
           IOS_SDK: ${{ env.IOS_SDK }}
-          FF_TOOLS_ROOT: ${{ github.workspace }}/app/ff_manager/.tools
+          PROJECT_ROOT: ${{ env.PROJECT_ROOT }}
+          BUILD_SCRIPT: ${{ env.BUILD_SCRIPT }}
+          RELEASE_DIR: ${{ env.RELEASE_DIR }}
+          FF_TOOLS_ROOT: ${{ env.PROJECT_ROOT }}/app/ff_manager/.tools
           PYTHON: ${{ github.workspace }}/.venv/bin/python
         run: |
           $ErrorActionPreference = "Stop"
@@ -157,8 +210,11 @@ jobs:
           Write-Host "FF Cache Manager IPA Build"
           Write-Host "======================================"
 
-          Write-Host "Current directory:"
-          Get-Location
+          Write-Host "PROJECT_ROOT:"
+          Write-Host $env:PROJECT_ROOT
+
+          Write-Host "BUILD_SCRIPT:"
+          Write-Host $env:BUILD_SCRIPT
 
           Write-Host "IOS_SDK:"
           Write-Host $env:IOS_SDK
@@ -177,23 +233,23 @@ jobs:
               throw "UIKit/UIKit.h was not found."
           }
 
-          Write-Host "UIKit/UIKit.h found."
-
-          if (-not (Test-Path -LiteralPath "./BUILD-WINDOWS.ps1")) {
-              throw "BUILD-WINDOWS.ps1 was not found in repository root."
+          if (-not (Test-Path -LiteralPath $env:BUILD_SCRIPT)) {
+              throw "BUILD-WINDOWS.ps1 was not found."
           }
 
-          Write-Host "BUILD-WINDOWS.ps1 found."
-
-          if (-not (Test-Path -LiteralPath "./app/ff_manager/build.ps1")) {
+          if (-not (Test-Path -LiteralPath "$env:PROJECT_ROOT/app/ff_manager/build.ps1")) {
               throw "app/ff_manager/build.ps1 was not found."
           }
 
-          Write-Host "app/ff_manager/build.ps1 found."
+          Write-Host "UIKit/UIKit.h found."
+          Write-Host "BUILD-WINDOWS.ps1 found."
+          Write-Host "build.ps1 found."
 
-          & ./BUILD-WINDOWS.ps1 `
+          New-Item -ItemType Directory -Force -Path $env:RELEASE_DIR | Out-Null
+
+          & $env:BUILD_SCRIPT `
             -IosSdk "$env:IOS_SDK" `
-            -OutputDirectory "./release"
+            -OutputDirectory "$env:RELEASE_DIR"
 
           if ($LASTEXITCODE -ne 0) {
               throw "IPA build failed with exit code $LASTEXITCODE"
@@ -208,22 +264,23 @@ jobs:
           echo "RELEASE FILES"
           echo "======================================"
 
-          if [ ! -d "./release" ]; then
-            echo "release directory was not created."
+          if [ ! -d "$RELEASE_DIR" ]; then
+            echo "Release directory was not created:"
+            echo "$RELEASE_DIR"
             exit 1
           fi
 
-          find ./release -maxdepth 2 -type f -print
+          find "$RELEASE_DIR" -maxdepth 3 -type f -print
 
           echo "======================================"
           echo "IPA FILES"
           echo "======================================"
 
-          find ./release -type f -name "*.ipa" -print
+          find "$RELEASE_DIR" -type f -name "*.ipa" -print
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: FF-Cache-Manager-IPA
-          path: release/*.ipa
+          path: ${{ env.RELEASE_DIR }}/*.ipa
           if-no-files-found: error
