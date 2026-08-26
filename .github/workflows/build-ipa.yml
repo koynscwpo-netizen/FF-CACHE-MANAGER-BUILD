@@ -13,6 +13,7 @@ jobs:
 
       - name: Select Xcode
         run: |
+          set -e
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
           xcodebuild -showsdks
@@ -34,7 +35,10 @@ jobs:
           echo "UIKit/UIKit.h found successfully."
 
       - name: Install build tools
+        shell: bash
         run: |
+          set -e
+
           brew update
           brew install llvm sevenzip
 
@@ -96,9 +100,48 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install lief
 
+          echo "Python:"
+          python --version
+
+          echo "LIEF:"
+          python -c "import lief; print(lief.__version__)"
+
+      - name: Verify project files
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "PROJECT ROOT"
+          echo "======================================"
+
+          pwd
+          ls -la
+
+          echo "======================================"
+          echo "BUILD-WINDOWS.ps1"
+          echo "======================================"
+
+          test -f "./BUILD-WINDOWS.ps1"
+          echo "BUILD-WINDOWS.ps1 found."
+
+          echo "======================================"
+          echo "build.ps1"
+          echo "======================================"
+
+          test -f "./app/ff_manager/build.ps1"
+          echo "app/ff_manager/build.ps1 found."
+
+          echo "======================================"
+          echo "TOOLS"
+          echo "======================================"
+
+          ls -la ./app/ff_manager/.tools
+
       - name: Build unsigned IPA
         shell: pwsh
         env:
+          IOS_SDK: ${{ env.IOS_SDK }}
           FF_TOOLS_ROOT: ${{ github.workspace }}/app/ff_manager/.tools
           PYTHON: ${{ github.workspace }}/.venv/bin/python
         run: |
@@ -107,6 +150,9 @@ jobs:
           Write-Host "======================================"
           Write-Host "FF Cache Manager IPA Build"
           Write-Host "======================================"
+
+          Write-Host "Current directory:"
+          Get-Location
 
           Write-Host "IOS_SDK:"
           Write-Host $env:IOS_SDK
@@ -128,8 +174,16 @@ jobs:
           Write-Host "UIKit/UIKit.h found."
 
           if (-not (Test-Path -LiteralPath "./BUILD-WINDOWS.ps1")) {
-              throw "BUILD-WINDOWS.ps1 was not found."
+              throw "BUILD-WINDOWS.ps1 was not found in repository root."
           }
+
+          Write-Host "BUILD-WINDOWS.ps1 found."
+
+          if (-not (Test-Path -LiteralPath "./app/ff_manager/build.ps1")) {
+              throw "app/ff_manager/build.ps1 was not found."
+          }
+
+          Write-Host "app/ff_manager/build.ps1 found."
 
           & ./BUILD-WINDOWS.ps1 `
             -IosSdk "$env:IOS_SDK" `
@@ -142,16 +196,24 @@ jobs:
       - name: Show generated files
         shell: bash
         run: |
+          set -e
+
           echo "======================================"
           echo "RELEASE FILES"
           echo "======================================"
 
-          if [ -d "./release" ]; then
-            find ./release -maxdepth 2 -type f -print
-          else
+          if [ ! -d "./release" ]; then
             echo "release directory was not created."
             exit 1
           fi
+
+          find ./release -maxdepth 2 -type f -print
+
+          echo "======================================"
+          echo "IPA FILES"
+          echo "======================================"
+
+          find ./release -type f -name "*.ipa" -print
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
