@@ -1,18 +1,103 @@
-name: Check iOS SDK
+name: Build IPA
 
 on:
   workflow_dispatch:
 
 jobs:
-  check-sdk:
-    runs-on: macos-15
+  build:
+    runs-on: macos-latest
 
     steps:
-      - name: Check Xcode and iOS SDK
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
         run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Get iPhoneOS SDK
+        shell: bash
+        run: |
           SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
-          echo "SDK: $SDK"
-          xcrun --sdk iphoneos --show-sdk-version
+          echo "IOS_SDK=$SDK" >> "$GITHUB_ENV"
+          echo "iPhoneOS SDK: $SDK"
+
           test -f "$SDK/System/Library/Frameworks/UIKit.framework/Headers/UIKit.h"
-          echo "UIKit SDK OK"
+
+      - name: Install build tools
+        run: |
+          brew update
+          brew install llvm sevenzip
+
+      - name: Prepare tool names for build.ps1
+        shell: bash
+        run: |
+          mkdir -p app/ff_manager/.tools
+
+          LLVM="$(brew --prefix llvm)/bin"
+
+          ln -sf "$LLVM/clang" \
+            app/ff_manager/.tools/clang.exe
+
+          ln -sf "$LLVM/ld64.lld" \
+            app/ff_manager/.tools/ld64.lld.exe
+
+          ln -sf "$LLVM/llvm-lipo" \
+            app/ff_manager/.tools/llvm-lipo.exe
+
+          ln -sf "$LLVM/llvm-install-name-tool" \
+            app/ff_manager/.tools/llvm-install-name-tool.exe
+
+          ln -sf "$LLVM/llvm-strip" \
+            app/ff_manager/.tools/llvm-strip.exe
+
+          SEVENZIP="$(brew --prefix sevenzip)/bin/7zz"
+          ln -sf "$SEVENZIP" \
+            app/ff_manager/.tools/7z.exe
+
+          chmod +x app/ff_manager/.tools/*
+
+          ls -l app/ff_manager/.tools
+
+      - name: Install Python dependency
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install lief
+
+      - name: Build unsigned IPA
+        shell: pwsh
+        env:
+          IOS_SDK: ${{ env.IOS_SDK }}
+          FF_TOOLS_ROOT: ${{ github.workspace }}/app/ff_manager/.tools
+          PYTHON: python3
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "IOS_SDK = $env:IOS_SDK"
+          Write-Host "FF_TOOLS_ROOT = $env:FF_TOOLS_ROOT"
+
+          if (-not (Test-Path "$env:IOS_SDK/System/Library/Frameworks/UIKit.framework/Headers/UIKit.h")) {
+              throw "UIKit/UIKit.h was not found in the Apple SDK."
+          }
+
+          & ./BUILD-WINDOWS.ps1 `
+            -IosSdk "$env:IOS_SDK" `
+            -OutputDirectory "./release"
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "IPA build failed."
+          }
+
+      - name: Show generated files
+        run: |
+          echo "===== RELEASE ====="
+          find ./release -maxdepth 2 -type f -print
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: FF-Cache-Manager-IPA
+          path: release/*.ipa
+          if-no-files-found: error
