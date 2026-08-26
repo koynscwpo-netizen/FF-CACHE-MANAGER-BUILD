@@ -64,9 +64,11 @@ jobs:
           echo "PROJECT ROOT:"
           echo "$PROJECT_ROOT"
 
-          if [ ! -f "$PROJECT_ROOT/app/ff_manager/build.ps1" ]; then
+          BUILD_PS1="$PROJECT_ROOT/app/ff_manager/build.ps1"
+
+          if [ ! -f "$BUILD_PS1" ]; then
             echo "build.ps1 was not found:"
-            echo "$PROJECT_ROOT/app/ff_manager/build.ps1"
+            echo "$BUILD_PS1"
             exit 1
           fi
 
@@ -84,7 +86,7 @@ jobs:
           echo "BUILD.PS1 FOUND"
           echo "======================================"
 
-          echo "$GITHUB_WORKSPACE/$PROJECT_ROOT/app/ff_manager/build.ps1"
+          echo "$GITHUB_WORKSPACE/$BUILD_PS1"
 
       - name: Install build tools
         shell: bash
@@ -94,7 +96,7 @@ jobs:
           brew update
           brew install llvm sevenzip
 
-            - name: Prepare tool names for build.ps1
+      - name: Prepare tool names for build.ps1
         shell: bash
         run: |
           set -e
@@ -107,11 +109,14 @@ jobs:
 
           CLANG="$LLVM/clang"
           STRIP="$LLVM/llvm-strip"
-
           LD="$(xcrun --find ld)"
           LIPO="$(xcrun --find lipo)"
           INSTALL_NAME="$(xcrun --find install_name_tool)"
           SEVENZIP="$(command -v 7zz)"
+
+          echo "======================================"
+          echo "CHECK BUILD TOOLS"
+          echo "======================================"
 
           test -f "$CLANG"
           test -f "$STRIP"
@@ -120,62 +125,40 @@ jobs:
           test -f "$INSTALL_NAME"
           test -f "$SEVENZIP"
 
-          ln -sf "$CLANG" "$TOOLS/clang.exe"
-          ln -sf "$STRIP" "$TOOLS/llvm-strip.exe"
-          ln -sf "$LD" "$TOOLS/ld64.lld.exe"
-          ln -sf "$LIPO" "$TOOLS/llvm-lipo.exe"
-          ln -sf "$INSTALL_NAME" "$TOOLS/llvm-install-name-tool.exe"
-          ln -sf "$SEVENZIP" "$TOOLS/7z.exe"
+          echo "clang: $CLANG"
+          echo "llvm-strip: $STRIP"
+          echo "ld: $LD"
+          echo "lipo: $LIPO"
+          echo "install_name_tool: $INSTALL_NAME"
+          echo "7z: $SEVENZIP"
+
+          ln -sf "$CLANG" \
+            "$TOOLS/clang.exe"
+
+          ln -sf "$STRIP" \
+            "$TOOLS/llvm-strip.exe"
+
+          ln -sf "$LD" \
+            "$TOOLS/ld64.lld.exe"
+
+          ln -sf "$LIPO" \
+            "$TOOLS/llvm-lipo.exe"
+
+          ln -sf "$INSTALL_NAME" \
+            "$TOOLS/llvm-install-name-tool.exe"
+
+          ln -sf "$SEVENZIP" \
+            "$TOOLS/7z.exe"
 
           chmod +x "$TOOLS"/*
 
           echo "$TOOLS" >> "$GITHUB_PATH"
 
           echo "======================================"
-          echo "LLVM STRIP"
+          echo "LLVM STRIP VERSION"
           echo "======================================"
 
           "$STRIP" --version
-
-          echo "llvm-strip.exe is ready."
-
-          TOOLS="$PROJECT_ROOT/app/ff_manager/.tools"
-
-          mkdir -p "$TOOLS"
-
-          LLVM="$(brew --prefix llvm)/bin"
-
-          CLANG="$LLVM/clang"
-          LD="$(xcrun --find ld)"
-          LIPO="$(xcrun --find lipo)"
-          INSTALL_NAME="$(xcrun --find install_name_tool)"
-          STRIP="$(xcrun --find strip)"
-          SEVENZIP="$(command -v 7zz)"
-
-          test -f "$CLANG"
-          test -f "$LD"
-          test -f "$LIPO"
-          test -f "$INSTALL_NAME"
-          test -f "$STRIP"
-          test -f "$SEVENZIP"
-
-          ln -sf "$CLANG" "$TOOLS/clang.exe"
-          ln -sf "$LD" "$TOOLS/ld64.lld.exe"
-          ln -sf "$LIPO" "$TOOLS/llvm-lipo.exe"
-          ln -sf "$INSTALL_NAME" "$TOOLS/llvm-install-name-tool.exe"
-          ln -sf "$STRIP" "$TOOLS/llvm-strip.exe"
-          ln -sf "$SEVENZIP" "$TOOLS/7z.exe"
-
-          chmod +x "$TOOLS"/*
-
-          # Make the .tools directory available to every later GitHub Actions step
-          echo "$TOOLS" >> "$GITHUB_PATH"
-
-          echo "======================================"
-          echo "BUILD TOOLS"
-          echo "======================================"
-
-          ls -l "$TOOLS"
 
           echo "======================================"
           echo "7-ZIP CHECK"
@@ -184,6 +167,12 @@ jobs:
           "$TOOLS/7z.exe" --help >/dev/null
 
           echo "7z.exe is working."
+
+          echo "======================================"
+          echo "TOOLS READY"
+          echo "======================================"
+
+          ls -la "$TOOLS"
 
       - name: Install Python dependency
         shell: bash
@@ -244,6 +233,14 @@ jobs:
           echo "7z.exe found in PATH."
 
           echo "======================================"
+          echo "LLVM STRIP PATH CHECK"
+          echo "======================================"
+
+          command -v llvm-strip.exe
+
+          echo "llvm-strip.exe found in PATH."
+
+          echo "======================================"
           echo "PROJECT CONTENTS"
           echo "======================================"
 
@@ -286,9 +283,6 @@ jobs:
           Write-Host "PYTHON:"
           Write-Host $env:PYTHON
 
-          Write-Host "7-ZIP:"
-          Get-Command 7z.exe | Format-List
-
           $UIKitHeader = Join-Path `
             $env:IOS_SDK `
             "System/Library/Frameworks/UIKit.framework/Headers/UIKit.h"
@@ -308,7 +302,6 @@ jobs:
           Write-Host "UIKit/UIKit.h found."
           Write-Host "BUILD-WINDOWS.ps1 found."
           Write-Host "build.ps1 found."
-          Write-Host "7z.exe found."
 
           New-Item -ItemType Directory -Force -Path $env:RELEASE_DIR | Out-Null
 
