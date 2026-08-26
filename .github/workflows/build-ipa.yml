@@ -31,7 +31,7 @@ jobs:
 
           test -f "$SDK/System/Library/Frameworks/UIKit.framework/Headers/UIKit.h"
 
-          echo "UIKit.h found successfully."
+          echo "UIKit/UIKit.h found successfully."
 
       - name: Install build tools
         run: |
@@ -47,32 +47,35 @@ jobs:
 
           LLVM="$(brew --prefix llvm)/bin"
 
-          # Clang
-          ln -sf "$LLVM/clang" \
+          CLANG="$LLVM/clang"
+          LD="$(xcrun --find ld)"
+          LIPO="$(xcrun --find lipo)"
+          INSTALL_NAME="$(xcrun --find install_name_tool)"
+          STRIP="$(xcrun --find strip)"
+          SEVENZIP="$(command -v 7zz)"
+
+          test -f "$CLANG"
+          test -f "$LD"
+          test -f "$LIPO"
+          test -f "$INSTALL_NAME"
+          test -f "$STRIP"
+          test -f "$SEVENZIP"
+
+          ln -sf "$CLANG" \
             app/ff_manager/.tools/clang.exe
 
-          # Apple linker
-          LD="$(xcrun --find ld)"
           ln -sf "$LD" \
             app/ff_manager/.tools/ld64.lld.exe
 
-          # Apple lipo
-          LIPO="$(xcrun --find lipo)"
           ln -sf "$LIPO" \
             app/ff_manager/.tools/llvm-lipo.exe
 
-          # Apple install_name_tool
-          INSTALL_NAME="$(xcrun --find install_name_tool)"
           ln -sf "$INSTALL_NAME" \
             app/ff_manager/.tools/llvm-install-name-tool.exe
 
-          # Apple strip
-          STRIP="$(xcrun --find strip)"
           ln -sf "$STRIP" \
             app/ff_manager/.tools/llvm-strip.exe
 
-          # 7-Zip
-          SEVENZIP="$(command -v 7zz)"
           ln -sf "$SEVENZIP" \
             app/ff_manager/.tools/7z.exe
 
@@ -81,17 +84,21 @@ jobs:
           echo "===== BUILD TOOLS ====="
           ls -l app/ff_manager/.tools
 
-                  - name: Install Python dependency
+      - name: Install Python dependency
+        shell: bash
         run: |
+          set -e
+
           python3 -m venv .venv
+
           . .venv/bin/activate
+
           python -m pip install --upgrade pip
           python -m pip install lief
 
       - name: Build unsigned IPA
         shell: pwsh
         env:
-          IOS_SDK: ${{ env.IOS_SDK }}
           FF_TOOLS_ROOT: ${{ github.workspace }}/app/ff_manager/.tools
           PYTHON: ${{ github.workspace }}/.venv/bin/python
         run: |
@@ -106,6 +113,9 @@ jobs:
 
           Write-Host "FF_TOOLS_ROOT:"
           Write-Host $env:FF_TOOLS_ROOT
+
+          Write-Host "PYTHON:"
+          Write-Host $env:PYTHON
 
           $UIKitHeader = Join-Path `
             $env:IOS_SDK `
@@ -130,6 +140,7 @@ jobs:
           }
 
       - name: Show generated files
+        shell: bash
         run: |
           echo "======================================"
           echo "RELEASE FILES"
